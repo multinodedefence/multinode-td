@@ -61,7 +61,13 @@ function move_worker(worker_id, player_id, direction){
     players[player_id]['workers'][worker_id][coordinate][0
 }
 
+function move_worker_from_path(path){
+    
+}
 
+function create_path(from_x, from_y, to_x, to_y){
+    return finder.findPath(from_x,from_y,to_x,to_y, path_grid);
+}
 
 
 export default function handleSockets(io) {
