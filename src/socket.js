@@ -36,7 +36,7 @@ target = [x,y]
 // Game settings
 let units = {}
 let sockets = {};
-let players = [];
+let players = {};
 
 let easystar = new easystarjs.js();
 
@@ -284,6 +284,24 @@ function grow_hub(player) {
     }
 }
 
+function unit_returned(player, unit) {
+    /*
+    Want player and destination(destination.x, destination.y)
+    */
+
+    console.log('[Player] unit returned.')
+
+    for (let i = 0; i < config[unit.unt_type].carry; i++) {
+        grow_hub(player);
+    }
+
+
+    // remove unit from field
+    // remove_cell_from_grid(unit.);
+
+    // // remove unit from units
+    // remove_cell_from_unit(units, destination)
+}
 
 function game_loop() {
 
@@ -313,9 +331,43 @@ function game_loop() {
                     // Update grid
                     grid[next_position.y][next_position.x] = grid[current_pos.y][current_pos.x];
                     grid[current_pos.y][current_pos.x] = null;
+                    easystar.setGrid(grid);
 
+                    // Reached its target
                     if (unit.pathIndex == unit.path.length) {
                         unit.moving = false;
+
+                        const objective = unit.objective;
+                        if (objective && Object.keys(objective).length != 0) {
+
+                            const player = players[unit.player_id];
+                            const hub = units[player.hub];
+
+                            // Reached the resource
+                            if (objective.action == 'mine') {
+
+                                if (unit.position.x == unit.objective.target_cell.x &&
+                                    unit.position.y == unit.objective.target_cell.y) {
+
+                                    unit.carry = config.worker.carry;
+                                    console.log("It's carrying");
+                                    // move_unit(hub.centre.x, hub.centre.y, unit.unit_id);
+                                    console.log(unit);
+                                    unit.path = [];
+                                    move_unit(20, 20, unit.unit_id);
+                                } else {
+
+                                    for (let i = 0; i < config[unit.unit_type].carry; i++) {
+                                        grow_hub(player);
+                                    }
+
+                                    move_unit(objective.target.x, objective.target.y, unit.unit_id);
+                                }
+                            } else if (objective.action == 'steal') {
+
+                                // Do shit.
+                            }
+                        }
                     }
                 }
             }
@@ -351,6 +403,7 @@ function get_worker_spawn_position(player_id) {
 function create_theif(player, position) {
     if (grid[position.y][position.x] != null) {
         return;
+
     }
 
     // Cannot create worker
@@ -429,10 +482,6 @@ function steal(thief_id, player_id) {
 
 }
 
-function remove_cell_from_unit(unit, target) {
-    unit.cells = unit.cells.filter(cell => cell.x != target.x || cell.y != target.y);
-}
-
 function is_cell_in_list(cells, target) {
     for (let cell of cells) {
         if (cell.x == target.x && cell.y == target.y) {
@@ -442,10 +491,24 @@ function is_cell_in_list(cells, target) {
     return false;
 }
 
+function create_unit_objective(unit, target_coodinates, action) {
+    /* 
+    objective{
+        coordinate : {}
+        action :  
+        target :
+    */
+    units[unit][objective][coordinate][x] = target_coodinates.x;
+    units[unit][objective][coordinate][y] = target_coodinates.y;
+
+    units[unit][objective]['action'] = action;
+
+
+}
+
 function remove_cell_from_unit(unit, target) {
     unit.cells = unit.cells.filter(cell => cell.x != target.x || cell.y != target.y);
 }
-
 
 function remove_cell_from_grid(target) {
     grid[target.x][target.y] = null;
@@ -474,7 +537,6 @@ function get_border_cells(cells) {
 
 function find_nearest_pos(des_X, des_Y, unit_id, cells) {
     let nearest_positions = get_border_cells(cells);
-    console.log(nearest_positions);
     const unit = units[unit_id];
 
     let cur_X = unit.position.x;
@@ -486,9 +548,11 @@ function find_nearest_pos(des_X, des_Y, unit_id, cells) {
     let distances = {};
 
     for (let position of nearest_positions) {
+        // if (!grid[position.y][position.x]) {
         let distance = Math.abs(position.x - cur_X) +
             Math.abs(position.y - cur_Y);
         distances[distance] = position;
+        // }
     }
     let minimum_distance = -1;
     for (let distance of Object.keys(distances)) {
@@ -499,13 +563,13 @@ function find_nearest_pos(des_X, des_Y, unit_id, cells) {
             minimum_distance = distance;
         }
     }
-    console.log(distances[minimum_distance]);
-    console.log(".....");
-    return distances[minimum_distance];
+    // console.log(distances[minimum_distance]);
+    // console.log(".....");
+    return minimum_distance > 0 ? distances[minimum_distance] : null;
 
 }
 
-function move_unit(des_X, des_Y, unit_id, callback) {
+function move_unit(des_X, des_Y, unit_id) {
 
     let unit = units[unit_id];
 
@@ -514,22 +578,27 @@ function move_unit(des_X, des_Y, unit_id, callback) {
 
     easystar.setGrid(grid);
     easystar.setAcceptableTiles([undefined, null, 0]);
+
+    let can_move = true;
+    console.log(cur_X, cur_Y, des_X, des_Y);
     easystar.findPath(cur_X, cur_Y, des_X, des_Y, function(path) {
 
-        if (!path) {
+        console.log("PATH ", path);
 
-            console.log("[Server] No Path");
-            const target_unit = grid[des_Y][des_X];
+        if (!path) {
+            let target_unit = grid[des_Y][des_X];
 
             // Not inside a stucture, there is just no path.
             if (!target_unit) {
+                can_move = false;
                 return;
             }
 
             const cells = units[target_unit.unit_id].cells;
             let nearest_position = find_nearest_pos(des_X, des_Y, unit_id, cells);
             if (nearest_position == null) {
-                throw "no path";
+                can_move = false;
+                return;
             } else {
                 move_unit(nearest_position.x, nearest_position.y, unit_id);
             }
@@ -538,13 +607,26 @@ function move_unit(des_X, des_Y, unit_id, callback) {
             unit.path = path;
             unit.pathIndex = 0;
             unit.moving = true;
-            console.log(path);
         }
     });
 
     easystar.setIterationsPerCalculation(1000);
+    return can_move
+}
+
+
+
+function return_home(unit_id) {
+    let unit = units[unit_id];
+
+    return_x = units.player.hub.centre.x;
+    return_y = units.player.hub.centre.y;
+
+    // move_unit
 
 }
+
+
 
 // Boolean method to check if the worker belongs to this player.
 function check_workers(player_id, worker_id) {
@@ -583,7 +665,7 @@ export default function handleSockets(io) {
                 player.id = client_player.id;
             }
 
-            for (let p of players) {
+            for (let p of Object.values(players)) {
                 if (p.id == client_player.id) {
                     console.log(`[SERVER] Player already connected with id ${p.id}`);
                     socket.disconnect();
@@ -603,7 +685,7 @@ export default function handleSockets(io) {
             const starting_position = { x: hub.centre.x + 2, y: hub.centre.y + 2 };
             create_worker(player, starting_position);
             console.log(starting_position);
-            players.push(player);
+            players[player.id] = player;
             socket.emit('setup', {
                 view: { topLeft: hub.centre },
                 units: units
@@ -618,14 +700,42 @@ export default function handleSockets(io) {
 
             // For now, assume that we want first worker
             console.log(player.workers);
-            let unit = units[player.workers[0].unit_id];
             let position = payload;
+            let unit = units[player.workers[0].unit_id];
+            let can_move = move_unit(position.x, position.y, unit.unit_id);
+            unit = units[unit.unit_id];
 
-            move_unit(position.x, position.y, unit.unit_id);
+            console.log(unit);
 
+            if (can_move) {
+
+                const cell = grid[position.y][position.x];
+
+                if (cell) {
+
+                    let action;
+                    let set_action = false;
+
+                    if (unit.unit_type == 'worker' && cell.unit_type == 'resource') {
+                        action = 'mine';
+                        set_action = true;
+                    } else if (cell.unit_type == 'theif' && cell.unit_type == 'hive') {
+                        action = 'steal';
+                        set_action = true;
+                    }
+
+                    if (set_action) {
+                        unit.objective = {
+                            target: cell.unit_id,
+                            target_cell: unit.path[unit.path.length - 1],
+                            action: action
+                        };
+                    }
+                } else {
+                    unit.objective = {};
+                }
+            }
         });
-
-        // socket.on('hub grow')
 
         socket.on('grow hub', e => {
 
@@ -704,7 +814,6 @@ function createArray(length) {
         var args = Array.prototype.slice.call(arguments, 1);
         while (i--) arr[length - 1 - i] = createArray.apply(this, args);
     }
-
     return arr;
 }
 

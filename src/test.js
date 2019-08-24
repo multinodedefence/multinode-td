@@ -13,6 +13,10 @@ function createArray(length) {
     return arr;
 }
 
+test = [
+    [1, 0, 0]
+];
+
 // var grid = createArray(4, 3);
 // console.log(grid);
 // grid[2][0] = { x: 1, y: 1 };
