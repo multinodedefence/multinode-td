@@ -63,18 +63,12 @@ export function drawCircularUnit(ctx, unit, cellSize, res) {
     ctx.fillText(unitName, unit.x, unit.y);
 }
 
-export function drawHub(ctx, screen, unit) {
-
-
-
-}
-
 /**
  * Required | Object { cells: array }
  */
 export function drawObject(ctx, screen, object) {
 
-    const hue = object.hue;
+    let hue = object.hue;
     const cellSize = screen.cellSize;
 
     ctx.strokeStyle = 'hsl(' + hue + ', 100%, 45%)';
@@ -84,14 +78,21 @@ export function drawObject(ctx, screen, object) {
     const [screenX, screenY] = [screen.gridTopLeft.x, screen.gridTopLeft.y];
     const [topLX, topLY] = [screen.topLeft.x, screen.topLeft.y];
 
-    for (let [x, y] of object.cells) {
-
+    for (let cell of object.cells) {
+        let [x, y] = [cell.x, cell.y];
         if (x < (screenX) || x > (screenX + screen.width / cellSize) ||
             y < (screenY) || y > (screenY + screen.width / cellSize)) {
             continue;
         }
 
-        ctx.fillRect((topLX + x - screenX) * cellSize, (topLY + y - screenY) * cellSize, cellSize, cellSize);
-        ctx.strokeRect((topLX + x - screenX) * cellSize, (topLY + y - screenY) * cellSize, cellSize, cellSize);
+        const posX = (topLX + x - screenX) * cellSize;
+        const posY = (topLY + y - screenY) * cellSize;
+
+        if (object.unit_type == 'worker') {
+            drawCircle(ctx, posX + 0.5 * cellSize, posY + 0.5 * cellSize, cellSize / 2, 30);
+        } else {
+            ctx.fillRect(posX, posY, cellSize, cellSize);
+            ctx.strokeRect(posX, posY, cellSize, cellSize);
+        }
     }
 }

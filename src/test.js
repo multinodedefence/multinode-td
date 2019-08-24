@@ -1,21 +1,24 @@
-var PF = require("pathfinding")
-var finder = new PF.AStarFinder();
-var grid = new PF.Grid(3, 3); 
-
-grid.setWalkableAt(1,1,false);
-grid.setWalkableAt(0,1, false);
-
-var path = finder.findPath(0,0,2,2, grid);
-console.log(path)
-
-function createArray(length) {
-    var arr = new Array(length || 0),
-        i = length;
-
-    if (arguments.length > 1) {
-        var args = Array.prototype.slice.call(arguments, 1);
-        while(i--) arr[length-1 - i] = createArray.apply(this, args);
+var easystarjs = require('easystarjs');
+var easystar = new easystarjs.js();
+var grid = [
+    [0, 0, 0],
+    [0, 0, 0]
+    [1, 1, 1],
+    [0, 1, 0]
+];
+grid[0][2] = 1;
+grid[1][2] = 1;
+grid[1][3] = 1;
+grid[2][2] = 1;
+easystar.setGrid(grid);
+easystar.setAcceptableTiles([null]);
+easystar.findPath(0, 0, 3, 2, function(path) {
+    if (path === null) {
+        console.log("Path was not found.");
+    } else {
+        console.log(path);
+        console.log(path[0].x)
     }
-
-    return arr;
-}
+});
+easystar.setIterationsPerCalculation(7);
+easystar.calculate();
