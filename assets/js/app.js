@@ -5,8 +5,9 @@ import { drawGrid, drawUnit, drawObject } from './graphics';
 import config from './config';
 
 // Set type player for now
-let type = "player";
-let socket = io({ query: "type=" + type });
+// let type = "player";
+// let socket = io({ query: "type=" + type });
+let socket;
 
 // Setup Canvas
 const canvas = document.getElementById('cvs');
@@ -25,21 +26,12 @@ const mouse = { x: 0, y: 0, button: false, wheel: 0, lastX: 0, lastY: 0, drag: f
 
 // Setup Game
 config.gameData = {
-    resources: [{
-        cells: [
-            [1, 1],
-            [1, 2],
-            [2, 2],
-            [2, 1],
-            [1, 40]
-        ],
-        hue: 204
-    }]
+    units: [],
+    players: []
 };
 
 config.player = {
-    id: -1,
-    // Coordinates the player is looking at.
+    id: -1
 }
 config.screen = {
     topLeft: { x: 0, y: 0 },
@@ -60,18 +52,24 @@ function startGame(playerType = 'player') {
 
     if (!socket) {
         socket = io({ query: "type=" + playerType });
-        setupSocket(socket)
+        setupSocket(socket);
     }
 
     if (!config.animLoopHandle) {
         animLoop();
     }
 
-    socket.emit('spawn');
+    const debugHiveGrow = document.getElementById('grow-hive');
+    debugHiveGrow.addEventListener('click', e => {
+        socket.emit('grow hub');
+    });
+
+    socket.emit('play', config.player);
 }
 
 function setupSocket(socket) {
 
+    console.log('Configuring Sockets');
     /**
      * Connection recieved.
      */
@@ -80,14 +78,22 @@ function setupSocket(socket) {
     });
 
     socket.on('setup', payload => {
+        config.screen.gridTopLeft = payload.view.topLeft;
+        config.screen.gridTopLeft.x -= 10;
+        config.screen.gridTopLeft.y -= 10;
+        config.gameData.units = payload.units;
+    });
 
+    socket.on('game update', payload => {
+        config.gameData.units = payload.units;
+        config.gameData.players = payload.players;
     });
 }
 
 function render(ctx, config) {
 
-    for (let resource of config.gameData.resources) {
-        drawObject(ctx, config.screen, resource);
+    for (let unit of Object.values(config.gameData.units)) {
+        drawObject(ctx, config.screen, unit);
     }
 }
 
