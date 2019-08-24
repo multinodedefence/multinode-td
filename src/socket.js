@@ -305,11 +305,12 @@ function unit_returned(player, unit) {
 
 function game_loop() {
 
-    easystar.calculate();
     game_counter++;
 
     // Every 10 ticks
     if (game_counter % 10 == 0) {
+
+        easystar.calculate();
         for (let [id, unit] of Object.entries(units)) {
             if (unit.unit_type == 'worker') {
                 if (unit.moving) {
@@ -349,19 +350,19 @@ function game_loop() {
                                 if (unit.position.x == unit.objective.target_cell.x &&
                                     unit.position.y == unit.objective.target_cell.y) {
 
+                                    console.log('[SERVER] Unit reached hub');
                                     unit.carry = config.worker.carry;
-                                    console.log("It's carrying");
-                                    // move_unit(hub.centre.x, hub.centre.y, unit.unit_id);
-                                    console.log(unit);
-                                    unit.path = [];
-                                    move_unit(20, 20, unit.unit_id);
+
+                                    move_unit(hub.centre.x, hub.centre.y, unit.unit_id);
                                 } else {
 
                                     for (let i = 0; i < config[unit.unit_type].carry; i++) {
                                         grow_hub(player);
                                     }
 
-                                    move_unit(objective.target.x, objective.target.y, unit.unit_id);
+                                    console.log('[SERVER] Unit reached target');
+
+                                    move_unit(objective.target_cell.x, objective.target_cell.y, unit.unit_id);
                                 }
                             } else if (objective.action == 'steal') {
 
@@ -569,7 +570,7 @@ function find_nearest_pos(des_X, des_Y, unit_id, cells) {
 
 }
 
-function move_unit(des_X, des_Y, unit_id) {
+function move_unit(des_X, des_Y, unit_id, callback) {
 
     let unit = units[unit_id];
 
@@ -579,28 +580,28 @@ function move_unit(des_X, des_Y, unit_id) {
     easystar.setGrid(grid);
     easystar.setAcceptableTiles([undefined, null, 0]);
 
-    let can_move = true;
-    console.log(cur_X, cur_Y, des_X, des_Y);
     easystar.findPath(cur_X, cur_Y, des_X, des_Y, function(path) {
 
         console.log("PATH ", path);
+        let can_move = true;
+        let target_position = { x: des_X, y: des_Y };
 
         if (!path) {
             let target_unit = grid[des_Y][des_X];
 
             // Not inside a stucture, there is just no path.
-            if (!target_unit) {
-                can_move = false;
-                return;
-            }
+            if (target_unit) {
 
-            const cells = units[target_unit.unit_id].cells;
-            let nearest_position = find_nearest_pos(des_X, des_Y, unit_id, cells);
-            if (nearest_position == null) {
-                can_move = false;
-                return;
+                const cells = units[target_unit.unit_id].cells;
+                let nearest_position = find_nearest_pos(des_X, des_Y, unit_id, cells);
+                if (nearest_position != null) {
+                    target_position = nearest_position;
+                    move_unit(nearest_position.x, nearest_position.y, unit_id);
+                } else {
+                    can_move = false;
+                }
             } else {
-                move_unit(nearest_position.x, nearest_position.y, unit_id);
+                can_move = false;
             }
 
         } else {
@@ -608,10 +609,13 @@ function move_unit(des_X, des_Y, unit_id) {
             unit.pathIndex = 0;
             unit.moving = true;
         }
+
+        if (callback) {
+            callback(can_move, path, target_position);
+        }
     });
 
     easystar.setIterationsPerCalculation(1000);
-    return can_move
 }
 
 
@@ -702,39 +706,37 @@ export default function handleSockets(io) {
             console.log(player.workers);
             let position = payload;
             let unit = units[player.workers[0].unit_id];
-            let can_move = move_unit(position.x, position.y, unit.unit_id);
-            unit = units[unit.unit_id];
 
-            console.log(unit);
+            move_unit(position.x, position.y, unit.unit_id, (can_move, path, target) => {
 
-            if (can_move) {
+                if (can_move) {
+                    const cell = grid[position.y][position.x];
+                    if (cell) {
 
-                const cell = grid[position.y][position.x];
+                        let action;
+                        let set_action = false;
 
-                if (cell) {
+                        if (unit.unit_type == 'worker' && cell.unit_type == 'resource') {
+                            action = 'mine';
+                            set_action = true;
+                        } else if (cell.unit_type == 'theif' && cell.unit_type == 'hive') {
+                            action = 'steal';
+                            set_action = true;
+                        }
 
-                    let action;
-                    let set_action = false;
-
-                    if (unit.unit_type == 'worker' && cell.unit_type == 'resource') {
-                        action = 'mine';
-                        set_action = true;
-                    } else if (cell.unit_type == 'theif' && cell.unit_type == 'hive') {
-                        action = 'steal';
-                        set_action = true;
-                    }
-
-                    if (set_action) {
-                        unit.objective = {
-                            target: cell.unit_id,
-                            target_cell: unit.path[unit.path.length - 1],
-                            action: action
-                        };
+                        if (set_action) {
+                            unit.objective = {
+                                target: cell.unit_id,
+                                target_cell: target,
+                                action: action
+                            };
+                        }
                     }
                 } else {
                     unit.objective = {};
                 }
-            }
+
+            });
         });
 
         socket.on('grow hub', e => {
