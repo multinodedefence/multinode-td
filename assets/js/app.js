@@ -22,6 +22,7 @@ let ctx = canvas.getContext('2d');
 const cellSize = height / config.gridScaleFactor;
 const mouse = { x: 0, y: 0, button: false, wheel: 0, lastX: 0, lastY: 0, drag: false };
 
+console.log(mouse);
 
 // Setup Game
 config.gameData = {
