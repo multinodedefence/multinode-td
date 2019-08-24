@@ -1,3 +1,5 @@
+import { functionTypeAnnotation } from "@babel/types";
+
 const INITIAL_HEIGHT = 100;
 const INITIAL_WIDTH = 100;
 
@@ -14,27 +16,31 @@ let finder = new PF.AStarFinder();
 Stored inside each element.
 unit_id: int
 player_id: int 
-object_type, 
+type, 
 coordinates,
 */
 let grid = createArray(width, height);
 
 /* 
 Stores location of every cell the player owns.
-player_id:
+worker_id:
 {
-id = int
-workers = {hive : [], ...}
-hive = []
+player_id = int
+worker_type  = string
+coordinate = [x,y]
 }
  */
-let players = {}
+let workers = {}
 
 // stores location of every resource
 let resources = {}
 
 // stores works the lower the faster
 let WORKER_SPEED = 100
+
+function get_newest_id(){
+    return ++current_id;
+}
 
 function place_random_resource(){
     NUMBER_RESOURCES = 10;
@@ -48,6 +54,12 @@ function place_random_resource(){
         }
         path_grid.setWalkableAt(random_x, random_y, false);
 
+        id = get_newest_id();
+
+        workers[id][player_id] = null;
+        worker[id][worker_type] = 'resource';
+        worker[id][coordinate] = [random_x,random_y];
+
         grid[random_x][random_y] = {'id' : i, 'type' : 'resource'};
     }
 }
@@ -55,15 +67,38 @@ function initialise_hub_location(player_id){
     let random_x = Math.floor(Math.random() * width);
     let random_y = Math.floor(Math.random() * height);
 
-    players[player_id]['hive'] = [random_x, random_y];
+    worker_id = get_newest_id();
+    workers[worker_id]['player_id'] = player_id;
+    workers[worker_id][worker_type] = 'hive';
+    workers[worker_id][coordinate] = [random_x,random_y];
 
     grid[random_x][random_y] = {'player_id' : player_id, 'unit_id' : ++current_id};
 
     path_grid.setWalkableAt(random_x, random_y, false)
 }
 
-function move_worker(cur_X, cur_Y, Des_X, Des_Y, workerId){
-    var path = finder.findPath(cur_X, cur_Y, Des_X, Des_Y, path_grid);
+// returns true if coordinate is next to a resource 
+// returns a random coordinate next to the resource if coordinate is directly on the resource
+function is_position_adjacent_or_destination(x, y, type){
+    if (grid[x][y]['type'] == type) {
+        return []
+    } else{
+        if(grid[x+1][y+1]['type'] == type || grid[x+1][y]['type'] == type||grid[x+1][y-1]['type' == type ||grid[x][y-1]['type'] == type ||grid[x-1][y-1]['type'] == type||grid[x-1][y]['type'] == type ||grid[x-1][y+1]['type'] == type||grid[x][y+1]['type'] == type){
+
+        }//else if(grid[x][y+1]['type'] == type))
+        
+    }
+    
+}
+
+//workers 
+
+
+function move_worker(Des_X, Des_Y, worker_id){
+    let cur_X = workers[worker_id][coordinate][0];
+    let cur_Y = workers[worker_id][coordinate][1];
+
+    let path = finder.findPath(cur_X, cur_Y, Des_X, Des_Y, path_grid);
     if (path.length == 0){
         throw "The destination can not be reached"
     }else{
@@ -72,12 +107,20 @@ function move_worker(cur_X, cur_Y, Des_X, Des_Y, workerId){
             // Implement a setToTimeOut function here
             setTimeout(function() { 
                 // have to change this part !!!!!!
-                grid[path[i][0]][path[i][1]] = workerId;
+                workers[coordinate][0] = path[i][]
             }, WORKER_SPEED);
         }
     }
-}                                                         
+}            
 
+// Boolean method to check if the worker belongs to this player.
+function check_workers(player_id, worker_id){
+    return workers[worker_id][player_id] == worker_id;
+}
+
+function create_path(from_x, from_y, to_x, to_y){
+    return finder.findPath(from_x,from_y,to_x,to_y, path_grid);
+}
 
 export default function handleSockets(io) {
 
@@ -101,11 +144,6 @@ export default function handleSockets(io) {
         
     })
 
-}
-
-// 
-function movePlayer(player){
-    var x = 0, y = 0;
 }
 
 function createArray(length) {

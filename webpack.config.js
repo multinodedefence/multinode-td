@@ -42,5 +42,10 @@ module.exports = {
     },
     plugins: [
         new webpack.NoEmitOnErrorsPlugin()
-    ]
+    ],
+    resolve: {
+        alias: {
+          core: path.join(__dirname, 'core'),
+        },
+      },
 }
