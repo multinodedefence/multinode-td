@@ -63,11 +63,6 @@ export function drawCircularUnit(ctx, unit, cellSize, res) {
     ctx.fillText(unitName, unit.x, unit.y);
 }
 
-export function drawHub(ctx, screen, unit) {
-
-
-}
-
 /**
  * Required | Object { cells: array }
  */
@@ -90,7 +85,14 @@ export function drawObject(ctx, screen, object) {
             continue;
         }
 
-        ctx.fillRect((topLX + x - screenX) * cellSize, (topLY + y - screenY) * cellSize, cellSize, cellSize);
-        ctx.strokeRect((topLX + x - screenX) * cellSize, (topLY + y - screenY) * cellSize, cellSize, cellSize);
+        const posX = (topLX + x - screenX) * cellSize;
+        const posY = (topLY + y - screenY) * cellSize;
+
+        if (object.unit_type == 'worker') {
+            drawCircle(ctx, posX + 0.5 * cellSize, posY + 0.5 * cellSize, cellSize / 2, 30);
+        } else {
+            ctx.fillRect(posX, posY, cellSize, cellSize);
+            ctx.strokeRect(posX, posY, cellSize, cellSize);
+        }
     }
 }

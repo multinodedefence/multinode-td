@@ -59,9 +59,20 @@ function startGame(playerType = 'player') {
         animLoop();
     }
 
-    const debugHiveGrow = document.getElementById('grow-hive');
-    debugHiveGrow.addEventListener('click', e => {
+    document.getElementById('grow-hive').addEventListener('click', e => {
         socket.emit('grow hub');
+    });
+
+    document.getElementById('shrink-hive').addEventListener('click', e => {
+        socket.emit('shrink hub');
+    });
+
+    document.getElementById('move-player').addEventListener('click', e => {
+        const payload = {
+            x: parseInt(document.getElementById('x').value),
+            y: parseInt(document.getElementById('y').value)
+        }
+        socket.emit('unit move', payload);
     });
 
     socket.emit('play', config.player);
@@ -82,6 +93,8 @@ function setupSocket(socket) {
         config.screen.gridTopLeft.x -= 10;
         config.screen.gridTopLeft.y -= 10;
         config.gameData.units = payload.units;
+
+        console.log(config.gameData.units);
     });
 
     socket.on('game update', payload => {

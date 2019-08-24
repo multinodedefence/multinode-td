@@ -1,6 +1,10 @@
 {% extends 'layout.twig' %}
 
 {% block body %}
-  <button id="grow-hive" style="height: 100px; width: 100px;"></button>
+  <button id="grow-hive" style="height: 100px; width: 100px;">Grow</button>
+  <button id="shrink-hive" style="height: 100px; width: 100px;">Shrink</button>
+  <button id="move-player" style="height: 100px; width: 100px;">Move</button>
+  <input id="x" type="number"/>
+  <input id="y" type="number"/>
   <canvas tabindex="1" id="cvs"></canvas>
 {% endblock %}

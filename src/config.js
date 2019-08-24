@@ -1,7 +1,7 @@
 export default {
     worker: {
         cost: 2,
-        speed: 100
+        speed: 50
     },
     hub: {
         starting_size: 1

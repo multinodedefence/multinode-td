@@ -23,7 +23,7 @@ coordinates,
 */
 let grid = createArray(width, height);
 
-/* 
+/*  
 Stores location of every cell the player owns.
 worker_id:
 player_id = int
@@ -148,8 +148,19 @@ function get_type_of_cell(x, y) {
     return null;
 }
 
+function get_owner_of_cell(x, y) {
+    const cell = grid[x][y];
+    if (cell) {
+        return units[cell.unit_id].player_id;
+    }
+
+    return null;
+}
+
+
+
 function shrink_hub(player) {
-    const hub = units[player.hub];
+    let hub = units[player.hub];
 
     let x = hub.centre.x;
     let y = hub.centre.y;
@@ -160,13 +171,14 @@ function shrink_hub(player) {
     let empty = true;
     let removed = false;
 
-    for (let i = range_x[0]; range_x[1]; i++) {
-        for (let j = range_y[0]; range_y[1]; j++) {
+    for (let i = range_x[0]; i <= range_x[1]; i++) {
+        for (let j = range_y[0]; j <= range_y[1]; j++) {
             // if on the ring
             if (i == (x - hub.radius) || i == (x + hub.radius) || j == (y - hub.radius) || j == (y + hub.radius)) {
                 // remove
                 if (get_type_of_cell(i, j) == 'hive') {
                     grid[i][j] = null;
+                    remove_cell_from_unit(hub, { x: i, y: j });
                     empty = false;
                     removed = true;
                     break;
@@ -184,13 +196,15 @@ function shrink_hub(player) {
         let range_y = [Math.abs(y - hub.radius), Math.abs(y + hub.radius)];
 
 
-        for (let i = range_x[0]; range_x[1]; i++) {
-            for (let j = range_y[0]; range_y[1]; j++) {
+        for (let i = range_x[0]; i <= range_x[1]; i++) {
+            for (let j = range_y[0]; j <= range_y[1]; j++) {
                 // if on the ring
                 if (i == (x - hub.radius) || i == (x + hub.radius) || j == (y - hub.radius) || j == (y + hub.radius)) {
                     // remove
                     if (get_type_of_cell(i, j) == 'hive') {
                         grid[i][j] = null;
+                        remove_cell_from_unit(hub, { x: i, y: j });
+
                         empty = false;
                         removed = true;
                         break;
@@ -201,10 +215,7 @@ function shrink_hub(player) {
                 break;
             }
         }
-
     }
-
-
 }
 
 function grow_hub(player) {
@@ -231,11 +242,6 @@ function grow_hub(player) {
 
             // place
             if (get_type_of_cell(i, j) != 'hive') {
-                console.log(i);
-                console.log(j);
-                console.log(hub.radius);
-                console.log(range_x);
-                console.log(range_y);
                 grid[i][j] = { player_id: player.id, unit_id: player.hub };
                 hub.cells.push({ x: i, y: j });
                 full = false;
@@ -281,14 +287,26 @@ function game_loop() {
 
     // Every 10 ticks
     if (game_counter % 10 == 0) {
-        // Move every worker
-        for (var id in units) {
-            let target_x = parseInt(units[id][target][0]) || -1;
-            let target_y = parseInt(units[id][target][1]) || -1;
 
-            if (0 <= target_x < WIDTH && 0 <= target_y < HEIGHT) {
-                if (Number.isInteger(target_x) && Number.isInteger(target_y)) {
-                    move_worker(target_x, target_y, id);
+        console.log('tick');
+        for (let [id, unit] of Object.entries(units)) {
+            if (unit.unit_type == 'worker') {
+                console.log("...");
+                if (unit.moving) {
+
+                    console.log("reaching moving.")
+                    let i = unit.pathIndex;
+                    remove_cell_from_unit(unit, { x: unit.position.x, y: unit.position.y });
+
+                    const nextPosition = { x: unit.path[i].x, y: unit.path[i].y };
+                    unit.position = nextPosition;
+                    unit.cells.push(nextPosition);
+
+                    unit.pathIndex++;
+
+                    if (unit.pathIndex == unit.path.length) {
+                        unit.moving = false;
+                    }
                 }
             }
         }
@@ -299,6 +317,53 @@ function send_updates() {
     for (let [id, socket] of Object.entries(sockets)) {
         sockets[id].emit('game update', { units, players });
     }
+}
+
+function get_worker_spawn_position(player_id) {
+    let hub = units[player.hub];
+
+    let x = hub.centre.x;
+    let y = hub.centre.y;
+
+    let radius = hub.radius;
+
+    for (let i = (x - radius); i <= (x + radius + 1); i++) {
+        for (let j = (y - radius); j <= (y + radius + 1); j++) {
+            if (i == (x - hub.radius) || i == (x + hub.radius) || j == (y - hub.radius) || j == (y + hub.radius)) {
+                // todo check if empty???
+                return { x: x, y: y };
+
+            }
+        }
+    }
+}
+
+function create_theif(player, position) {
+    if (grid[position.x][position.y] != null) {
+        return;
+    }
+
+    // Cannot create worker
+    if (!player.hub || !(player.hub in units)) {
+        return;
+    }
+
+    const hub = units[player.hub];
+
+    let theif = {
+        player_id: player.id,
+        unit_id: get_newest_id(),
+        unit_type: 'theif',
+        cells: [position],
+        target: { x: -1, y: -1 },
+        position: position,
+        status: 'idle' // can be holds resource
+    }
+    const ref = { unit_id: theif.unit_id, unit_type: 'theif' };
+    units[theif.unit_id] = thief;
+    player.theives.push(ref);
+
+    grid[position.x][position.y] = ref;
 }
 
 /**
@@ -323,14 +388,34 @@ function create_worker(player, position) {
     let worker = {
         player_id: player.id,
         unit_id: get_newest_id(),
+        unit_type: 'worker',
         cells: [position],
         target: { x: -1, y: -1 },
         position: position,
         status: 'idle'
     }
 
+    const ref = { unit_id: worker.unit_id, unit_type: 'worker' };
     units[worker.unit_id] = worker;
-    grid[position.x][position.y] = { unit_id: unit_id, unit_type: 'worker' }
+    player.workers.push(ref);
+
+    grid[position.x][position.y] = ref;
+}
+
+function steal(thief_id, player_id) {
+    let theif = units[player_id.theif.theif_id];
+
+    let victom = get_owner_of_cell(thief.target.x, thief.target.y);
+
+
+    let x = theif.position.x;
+    let y = theif.position.y;
+
+    if (is_position_adjacent_or_destination(x, y, 'hive')) {
+
+
+    }
+
 }
 
 function is_cell_in_list(cells, target) {
@@ -340,6 +425,10 @@ function is_cell_in_list(cells, target) {
         }
     }
     return false;
+}
+
+function remove_cell_from_unit(unit, target) {
+    unit.cells = unit.cells.filter(cell => cell.x != target.x || cell.y != target.y);
 }
 
 /**
@@ -405,54 +494,50 @@ function find_nearest_pos(des_X, des_Y, unit_id, cells) {
 
 function move_unit(des_X, des_Y, unit_id, callback) {
 
-    const unit = units[unit_id];
+    let unit = units[unit_id];
 
     let cur_X = unit.position.x;
     let cur_Y = unit.position.y;
+
     let easystar = new easystarjs.js();
 
     easystar.setGrid(grid);
-    easystar.setAcceptableTiles([null]);
-    easystar.findPath(cur_X, cur_Y, des_X, des_Y, function(path) {});
+    easystar.setAcceptableTiles([undefined, null]);
+    easystar.findPath(cur_X, cur_Y, des_X, des_Y, function(path) {
+
+        if (!path) {
+
+            console.log("[Server] No Path");
+            let nearest_position = find_nearest_pos(des_X, des_Y, unit_id, unit.cells);
+            if (nearest_position == null) {
+                throw "no path";
+            } else {
+                // units[unit_id][target].x = nearest_position.x;
+                // units[unit_id][target].y = nearest_position.y
+                move_unit(nearest_position.x, nearest_position.y, unit_id);
+            }
+
+        } else {
+
+            // unit.target.x = path[path.length - 1].x;
+            // unit.target.y = path[path.length - 1].y;
+
+            unit.path = path;
+            unit.pathIndex = 0;
+            unit.moving = true;
+            console.log(path);
+            // grid[path[0].x][path[0].y] = units[worker_id];
+        }
+    });
+
     easystar.setIterationsPerCalculation(100000);
     easystar.calculate();
-
-    if (path == null) {
-        let nearest_position = find_nearest_pos(des_X, des_Y, unit_id, unit.cells);
-        if (nearest_position == null) {
-            throw "no path";
-        } else {
-            // units[unit_id][target].x = nearest_position.x;
-            // units[unit_id][target].y = nearest_position.y
-            move_unit(nearest_position.x, nearest_position.y, unit_id);
-        }
-
-    } else {
-        units[worker_id][coordinate][x] = path[0].x;
-        units[worker_id][coordinate][y] = path[0].y;
-        grid[path[0].x][path[0].y] = units[worker_id];
-    }
 }
-
-function move_worker_resource(Des_X, Des_Y, re) {
-
-}
-
-
 
 // Boolean method to check if the worker belongs to this player.
 function check_workers(player_id, worker_id) {
     return units[worker_id][player_id] == player_id;
 }
-
-//function collect_resources(worker_id, resources_id){
-//     
-//
-//
-//
-//
-//}
-
 
 
 function create_path(from_x, from_y, to_x, to_y) {
@@ -473,7 +558,8 @@ export default function handleSockets(io) {
         let player = {
             id: socket.id,
             type: type,
-            last_hearbeat: new Date().getTime()
+            last_hearbeat: new Date().getTime(),
+            workers: []
         }
 
         socket.on('play', client_player => {
@@ -496,12 +582,17 @@ export default function handleSockets(io) {
             player.hue = Math.round(Math.random() * 360);
 
             if (player.type == 'player') {
+
                 initialise_hub(player);
             }
 
-            players.push(player);
-
             const hub = units[player.hub];
+
+            // Setup test worker
+            const starting_position = { x: hub.centre.x + 2, y: hub.centre.y + 2 };
+            create_worker(player, starting_position);
+
+            players.push(player);
             socket.emit('setup', {
                 view: { topLeft: hub.centre },
                 units: units
@@ -510,8 +601,17 @@ export default function handleSockets(io) {
             socket.emit('event');
         });
 
-        socket.on('unit move', unit => {
-            // do shit here
+        socket.on('unit move', payload => {
+
+            console.log('[Player] Moving Player.');
+
+            // For now, assume that we want first worker
+            console.log(player.workers);
+            let unit = units[player.workers[0].unit_id];
+            let position = payload;
+
+            move_unit(position.x, position.y, unit.unit_id);
+
         });
 
         // socket.on('hub grow')
@@ -522,6 +622,12 @@ export default function handleSockets(io) {
                 // grow by 1
             grow_hub(player);
         });
+
+        socket.on('shrink hub', e => {
+            console.log('[Player] Shrink hub.')
+            shrink_hub(player);
+        });
+
     });
 }
 
@@ -542,5 +648,5 @@ place_random_resource();
 
 
 // Periodic
-// setInterval(game_loop, INTERVAL);
+setInterval(game_loop, INTERVAL);
 setInterval(send_updates, INTERVAL);
