@@ -3,6 +3,10 @@ export default {
         cost: 2,
         speed: 50
     },
+    thief: {
+        cost: 2,
+        speed: 50
+    },
     hub: {
         starting_size: 1
     },

@@ -412,8 +412,9 @@ function steal(thief_id, player_id) {
     let y = theif.position.y;
 
     if (is_position_adjacent_or_destination(x, y, 'hive')) {
-
-
+        shrink_hub(victom);
+        // todo other naming.
+        thief[has_resource] = true;
     }
 
 }
@@ -429,6 +430,11 @@ function is_cell_in_list(cells, target) {
 
 function remove_cell_from_unit(unit, target) {
     unit.cells = unit.cells.filter(cell => cell.x != target.x || cell.y != target.y);
+}
+
+
+function remove_cell_from_grid(target) {
+    grid[target.x][target.y] = null;
 }
 
 /**
@@ -626,6 +632,60 @@ export default function handleSockets(io) {
         socket.on('shrink hub', e => {
             console.log('[Player] Shrink hub.')
             shrink_hub(player);
+        });
+
+        socket.on('create worker', e => {
+            console.log('[Player] Spawned worker.')
+
+            for (let i = 0; i < config.worker.cost; i++) {
+                shrink_hub(player);
+            }
+            create_worker(player, get_worker_spawn_position(player));
+        });
+
+        socket.on('create theif', e => {
+            console.log('[Player] Spawned thief.')
+
+            for (let i = 0; i < config.thief.cost; i++) {
+                shrink_hub(player);
+            }
+            create_theif(player, get_worker_spawn_position(player));
+        });
+
+        socket.on('theif returned', e => {
+            /*
+            Want player and destination(destination.x, destination.y)
+            */
+
+            console.log('[Player] Theif returned.')
+
+            for (let i = 0; i < config.thief.cost; i++) {
+                grow_hub(player);
+            }
+
+            // remove unit from field
+            remove_cell_from_grid(destination);
+
+            // remove unit from units
+            remove_cell_from_unit(units, destination)
+        });
+
+        socket.on('worker returned', e => {
+            /*
+            Want player and destination(destination.x, destination.y)
+            */
+
+            console.log('[Player] Worker returned.')
+
+            for (let i = 0; i < config.worker.cost; i++) {
+                grow_hub(player);
+            }
+
+            // remove unit from field
+            remove_cell_from_grid(destination);
+
+            // remove unit from units
+            remove_cell_from_unit(units, destination)
         });
 
     });
