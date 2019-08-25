@@ -1,6 +1,8 @@
 const path = require('path')
 const webpack = require('webpack')
 const HtmlWebPackPlugin = require("html-webpack-plugin")
+const CopyPlugin = require('copy-webpack-plugin');
+
 
 
 module.exports = {
@@ -40,12 +42,16 @@ module.exports = {
             }
         ]
     },
+    // for images
     plugins: [
-        new webpack.NoEmitOnErrorsPlugin()
+        new webpack.NoEmitOnErrorsPlugin(),
+        new CopyPlugin([
+            { from: '/example', to: '/public' }
+        ])
     ],
     resolve: {
         alias: {
-          core: path.join(__dirname, 'core'),
+            core: path.join(__dirname, 'core'),
         },
-      },
+    },
 }

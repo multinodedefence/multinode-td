@@ -1,7 +1,5 @@
 import io from 'socket.io-client';
-import { drawGrid, drawUnit, drawObject } from './graphics';
-// import { configureMovement } from './mouse';
-
+import { drawGrid, drawUnit, drawObject, centerScreen, get_cell_at_position } from './graphics';
 import config from './config';
 
 // Set type player for now
@@ -32,7 +30,17 @@ config.gameData = {
 };
 
 config.player = {
-    id: -1
+    id: -1,
+    firstClick: true,
+    source: {
+        unit_id: -1,
+        x: -1,
+        y: -1
+    },
+    target: {
+        x: -1,
+        y: -1
+    }
 }
 config.screen = {
     topLeft: { x: 0, y: 0 },
@@ -43,6 +51,10 @@ config.screen = {
     panZoom: { x: 0, y: 0 }
 }
 
+window.oncontextmenu = function() {
+    return false;
+}
+
 function startGame(playerType = 'player') {
 
     config.width = window.innerWidth;
@@ -50,6 +62,35 @@ function startGame(playerType = 'player') {
 
     // Setup mouse events
     configureMovement(ctx, canvas, config);
+    canvas.addEventListener("mousedown", e => {
+        const bounds = canvas.getBoundingClientRect();
+        const clickPos = { x: e.clientX - bounds.left, y: e.clientY - bounds.top };
+        const cell = get_cell_at_position(clickPos, config.screen);
+
+        let isRightMB;
+        e = e || window.event;
+        if ("which" in e)
+            isRightMB = e.which == 3;
+        else if ("button" in e)
+            isRightMB = e.button == 2;
+
+        if (isRightMB) {
+            socket.emit('get cell', cell);
+        } else {
+
+            // Left click after selecting unit
+            if (config.player.source.x != -1 && config.player.source.y != -1 && config.player.source.unit_id != -1) {
+
+                config.player.target = cell;
+
+                socket.emit('unit move', {
+                    unit_id: config.player.source.unit_id,
+                    x: config.player.target.x,
+                    y: config.player.target.y
+                });
+            }
+        }
+    });
 
     if (!socket) {
         socket = io({ query: "type=" + playerType });
@@ -60,20 +101,20 @@ function startGame(playerType = 'player') {
         animLoop();
     }
 
-    document.getElementById('grow-hive').addEventListener('click', e => {
-        socket.emit('grow hub');
+    // document.getElementById('grow-hive').addEventListener('click', e => {
+    //     socket.emit('grow hub');
+    // });
+
+    // document.getElementById('shrink-hive').addEventListener('click', e => {
+    //     socket.emit('shrink hub');
+    // });
+
+    document.getElementById('make-worker').addEventListener('click', e => {
+        socket.emit('make worker');
     });
 
-    document.getElementById('shrink-hive').addEventListener('click', e => {
-        socket.emit('shrink hub');
-    });
-
-    document.getElementById('move-player').addEventListener('click', e => {
-        const payload = {
-            x: parseInt(document.getElementById('x').value),
-            y: parseInt(document.getElementById('y').value)
-        }
-        socket.emit('unit move', payload);
+    document.getElementById('make-thief').addEventListener('click', e => {
+        socket.emit('make thief');
     });
 
     socket.emit('play', config.player);
@@ -90,24 +131,55 @@ function setupSocket(socket) {
     });
 
     socket.on('setup', payload => {
-        config.screen.gridTopLeft = payload.view.topLeft;
-        config.screen.gridTopLeft.x -= 10;
-        config.screen.gridTopLeft.y -= 10;
-        config.gameData.units = payload.units;
-
-        console.log(config.gameData.units);
+        centerScreen(payload.view.topLeft, config.screen);
+        console.log(config.gameData);
     });
 
     socket.on('game update', payload => {
         config.gameData.units = payload.units;
         config.gameData.players = payload.players;
     });
+
+    socket.on('read cell', payload => {
+
+        const unit_id = payload.unit ? payload.unit.unit_id : -1;
+        if (unit_id == -1) {
+            return;
+        }
+
+        const unit = config.gameData.units[unit_id];
+        const player = config.gameData.players[unit.player_id];
+
+        const contains = true;
+        // console.log(player);
+        // const player_units = player[unit.unit_type];
+        // for (let i = 0; i < player_units.length; i++) {
+        //     if (player_units[i].unit_id == unit_id) {
+        //         contains = true;
+        //     }
+        // }
+
+        // Check if source is owned by the player
+        if (contains) {
+            config.player.source.unit_id = unit_id;
+            config.player.source.x = payload.cell.x;
+            config.player.source.y = payload.cell.y;
+        }
+    });
 }
 
 function render(ctx, config) {
 
     for (let unit of Object.values(config.gameData.units)) {
-        drawObject(ctx, config.screen, unit);
+        const selected = unit.unit_id == config.player.source.unit_id;
+
+        let hue;
+        if (unit.player_id) {
+            hue = config.gameData.players[unit.player_id].hue;
+        } else {
+            hue = unit.hue;
+        }
+        drawObject(ctx, config.screen, unit, hue, selected);
     }
 }
 
@@ -144,6 +216,7 @@ function update(ctx, config) {
             mouse.lastX = mouse.x;
             mouse.lastY = mouse.y;
         }
+
     } else if (mouse.drag) {
         mouse.drag = false;
     }

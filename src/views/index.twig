@@ -1,10 +1,52 @@
 {% extends 'layout.twig' %}
 
+<script>
+import Icon from './cover.png';
+</script>
+
 {% block body %}
-  <button id="grow-hive" style="height: 100px; width: 100px;">Grow</button>
+<div class="header shadow-sm p-3 bg-white rounded">
+<img src="https://i.imgur.com/HjTKVDM.png" class="img-fluid" alt="Responsive image">
+  <button id="make-worker" class="btn btn-primary" style="height: 100px; width: 150px;">Make Worker</button>
+  <button id="make-thief" class="btn btn-primary" style="height: 100px; width: 150px;">Make Thief</button>
+</div>
+  {# <button id="grow-hive" style="height: 100px; width: 100px;">Grow</button>
+
   <button id="shrink-hive" style="height: 100px; width: 100px;">Shrink</button>
-  <button id="move-player" style="height: 100px; width: 100px;">Move</button>
-  <input id="x" type="number"/>
-  <input id="y" type="number"/>
-  <canvas tabindex="1" id="cvs"></canvas>
+  <button id="move-player" style="height: 100px; width: 100px;">Move</button> #}
+
+  {# <input id="x" type="number"/>
+  <input id="y" type="number"/> #}
+  <canvas tabindex="1" id="cvs" style="overflow: hidden"></canvas>
+
+  <style>
+
+  
+.header {
+  border-bottom: solid 2px lightgray;
+}
+div {
+  width : 100%;
+  padding: 20px 0;
+}
+img{
+  /* width: 100%; */
+  height: 100px !important;
+
+}
+
+ .btn {
+  border: none;
+  /* padding: 15px 32px; */
+  /* border: 5px solid #33FFDA; */
+  font-size: 2px;
+  line-height: 65px;  
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  margin: 20px;
+}
+
+  </style>
 {% endblock %}

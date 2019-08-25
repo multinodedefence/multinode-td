@@ -52,31 +52,14 @@ function get_newest_id() {
 
 function place_random_resource() {
 
-    let patterns = [
-        [
-            [0, 0],
-            [0, 1],
-            [0, -1],
-            [1, 1],
-            [1, 0]
-        ],
-        [
-            [0, 0],
-            [1, 1],
-            [0, -1]
-        ],
-        [
-            [0, 0],
-            [0, 1]
-        ]
-    ]
-
+    let patterns = config.resources.patterns;
     let count = 0;
+
     while (count < config.resources.starting_count) {
         let random_x = Math.floor(Math.random() * width);
         let random_y = Math.floor(Math.random() * height);
 
-        while (grid[random_y][random_x] != undefined) {
+        while (get_cell_at_position(random_x, random_y) != null) {
             random_x = Math.floor(Math.random() * width);
             random_y = Math.floor(Math.random() * height);
         }
@@ -96,6 +79,10 @@ function place_random_resource() {
                 y: random_y + y
             });
 
+            if (!grid[random_y + y]) {
+                grid[random_y + y] = [];
+            }
+
             grid[random_y + y][random_x + x] = resource;
         }
 
@@ -112,6 +99,7 @@ function initialise_hub(player) {
     let unit_id = get_newest_id();
     let hub = {
         player_id: player.id,
+        unit_id: unit_id,
         unit_type: 'hive',
         size: config.hub.starting_size,
         centre: { x: random_x, y: random_y },
@@ -120,8 +108,12 @@ function initialise_hub(player) {
     }
 
     units[unit_id] = hub;
-    grid[random_y][random_x] = { player_id: player.id, unit_id: unit_id };
+    grid[random_y][random_x] = { player_id: player.id, unit_id: unit_id, unit_type: 'hive' };
     player['hub'] = unit_id;
+
+    for (let i = 0; i < config.hub.starting_size - 1; i++) {
+        grow_hub(player);
+    }
 }
 
 // returns true if coordinate is next to a resource 
@@ -141,10 +133,17 @@ function is_position_adjacent_or_destination(x, y, type) {
     }
 }
 
+function get_cell_at_position(x, y) {
+    if (grid[y] != undefined && grid[y][x] != undefined) {
+        return grid[y][x];
+    }
+    return null;
+}
+
 function get_type_of_cell(x, y) {
 
-    const cell = grid[y][x];
-    if (cell) {
+    const cell = get_cell_at_position(x, y);
+    if (cell != null) {
         return units[cell.unit_id].unit_type;
     }
 
@@ -152,8 +151,8 @@ function get_type_of_cell(x, y) {
 }
 
 function get_owner_of_cell(x, y) {
-    const cell = grid[y][x];
-    if (cell) {
+    const cell = get_cell_at_position(x, y);
+    if (cell != null) {
         return units[cell.unit_id].player_id;
     }
 
@@ -161,10 +160,12 @@ function get_owner_of_cell(x, y) {
 }
 
 
-
 function shrink_hub(player) {
     let hub = units[player.hub];
 
+    if (hub == undefined) {
+        return;
+    }
     let x = hub.centre.x;
     let y = hub.centre.y;
 
@@ -180,7 +181,7 @@ function shrink_hub(player) {
             if (i == (x - hub.radius) || i == (x + hub.radius) || j == (y - hub.radius) || j == (y + hub.radius)) {
                 // remove
                 if (get_type_of_cell(i, j) == 'hive') {
-                    grid[j][i] = null;
+                    grid[j][i] = undefined;
                     remove_cell_from_unit(hub, { x: i, y: j });
                     empty = false;
                     removed = true;
@@ -245,7 +246,7 @@ function grow_hub(player) {
 
             // place
             if (get_type_of_cell(i, j) != 'hive') {
-                grid[j][i] = { player_id: player.id, unit_id: player.hub };
+                grid[j][i] = { player_id: player.id, unit_id: player.hub, unit_type: 'hive' };
                 hub.cells.push({ x: i, y: j });
                 full = false;
                 placed = true;
@@ -270,7 +271,7 @@ function grow_hub(player) {
 
                 // place
                 if (get_type_of_cell(i, j) != 'hive') {
-                    grid[j][i] = { player_id: player.id, unit_id: player.hub };
+                    grid[j][i] = { player_id: player.id, unit_id: player.hub, unit_type: 'hive' };
                     hub.cells.push({ x: i, y: j });
                     full = false;
                     placed = true;
@@ -289,7 +290,6 @@ function unit_returned(player, unit) {
     Want player and destination(destination.x, destination.y)
     */
 
-    console.log('[Player] unit returned.')
 
     for (let i = 0; i < config[unit.unt_type].carry; i++) {
         grow_hub(player);
@@ -312,7 +312,7 @@ function game_loop() {
 
         easystar.calculate();
         for (let [id, unit] of Object.entries(units)) {
-            if (unit.unit_type == 'worker') {
+            if (unit.unit_type == 'worker' || unit.unit_type == 'thief') {
                 if (unit.moving) {
 
                     if (!unit.path || !unit.path.length) {
@@ -331,8 +331,8 @@ function game_loop() {
 
                     // Update grid
                     grid[next_position.y][next_position.x] = grid[current_pos.y][current_pos.x];
-                    grid[current_pos.y][current_pos.x] = null;
-                    easystar.setGrid(grid);
+                    grid[current_pos.y][current_pos.x] = undefined;
+                    // easystar.setGrid(grid);
 
                     // Reached its target
                     if (unit.pathIndex == unit.path.length) {
@@ -350,28 +350,47 @@ function game_loop() {
                                 if (unit.position.x == unit.objective.target_cell.x &&
                                     unit.position.y == unit.objective.target_cell.y) {
 
-                                    console.log('[SERVER] Unit reached hub');
                                     unit.carry = config.worker.carry;
 
                                     move_unit(hub.centre.x, hub.centre.y, unit.unit_id);
+                                    unit.move = false;
                                 } else {
 
                                     for (let i = 0; i < config[unit.unit_type].carry; i++) {
                                         grow_hub(player);
                                     }
 
-                                    console.log('[SERVER] Unit reached target');
-
                                     move_unit(objective.target_cell.x, objective.target_cell.y, unit.unit_id);
                                 }
                             } else if (objective.action == 'steal') {
 
-                                // Do shit.
+                                if (unit.position.x == unit.objective.target_cell.x &&
+                                    unit.position.y == unit.objective.target_cell.y) {
+
+
+                                    unit.carry = config.worker.carry;
+
+                                    const player_id = units[unit.objective.target_unit_id].player_id;
+                                    shrink_hub(players[player_id]);
+
+                                    move_unit(hub.centre.x, hub.centre.y, unit.unit_id);
+                                    unit.move = false;
+
+                                } else {
+
+                                    for (let i = 0; i < config[unit.unit_type].carry; i++) {
+                                        grow_hub(player);
+                                    }
+
+                                    move_unit(objective.target_cell.x, objective.target_cell.y, unit.unit_id);
+                                }
                             }
                         }
                     }
                 }
-            }
+            } // else if (unit.unit_type == "theif"){
+            //      
+            //}
         }
     }
 }
@@ -382,7 +401,8 @@ function send_updates() {
     }
 }
 
-function get_worker_spawn_position(player_id) {
+function get_worker_spawn_position(player) {
+    // const player = players[player_id];
     let hub = units[player.hub];
 
     let x = hub.centre.x;
@@ -390,21 +410,21 @@ function get_worker_spawn_position(player_id) {
 
     let radius = hub.radius;
 
-    for (let i = (x - radius); i <= (x + radius + 1); i++) {
-        for (let j = (y - radius); j <= (y + radius + 1); j++) {
+    for (let i = (x - radius) - 1; i <= (x + radius + 1); i++) {
+        for (let j = (y - radius) - 1; j <= (y + radius + 1); j++) {
             if (i == (x - hub.radius) || i == (x + hub.radius) || j == (y - hub.radius) || j == (y + hub.radius)) {
-                // todo check if empty???
-                return { x: x, y: y };
-
+                if (grid[j][i] == null) {
+                    return { x: i, y: j };
+                }
             }
         }
     }
 }
 
-function create_theif(player, position) {
-    if (grid[position.y][position.x] != null) {
-        return;
+function create_thief(player, position) {
 
+    if (!position || get_cell_at_position(position.x, position.y) != undefined) {
+        return;
     }
 
     // Cannot create worker
@@ -413,20 +433,28 @@ function create_theif(player, position) {
     }
 
     const hub = units[player.hub];
+    if (hub.size <= config.worker.cost) {
+        return;
+    }
 
-    let theif = {
+    let thief = {
         player_id: player.id,
         unit_id: get_newest_id(),
-        unit_type: 'theif',
+        unit_type: 'thief',
         cells: [position],
         target: { x: -1, y: -1 },
         position: position,
         status: 'idle' // can be holds resource
     }
-    const ref = { unit_id: theif.unit_id, unit_type: 'theif' };
-    units[theif.unit_id] = thief;
-    player.theives.push(ref);
-
+    const ref = { unit_id: thief.unit_id, unit_type: 'thief' };
+    units[thief.unit_id] = thief;
+    player.thieves.push(ref);
+    if (position.x < 0 || position.x > config.width || position.y < 0 || position.y > config.width) {
+        return;
+    }
+    if (grid[position.y] == undefined) {
+        grid[position.y] = [];
+    }
     grid[position.y][position.x] = ref;
 }
 
@@ -435,7 +463,10 @@ function create_theif(player, position) {
  */
 function create_worker(player, position) {
 
-    if (grid[position.y][position.x] != null) {
+    // if (grid[position.y][position.x] != undefined) {
+    //     return;
+    // }
+    if (!position || get_cell_at_position(position.x, position.y) != null) {
         return;
     }
 
@@ -445,9 +476,9 @@ function create_worker(player, position) {
     }
 
     const hub = units[player.hub];
-    // if (hub.size <= config.worker.cost) {
-    //     return;
-    // }
+    if (hub.size <= config.worker.cost) {
+        return;
+    }
 
     let worker = {
         player_id: player.id,
@@ -462,25 +493,13 @@ function create_worker(player, position) {
     const ref = { unit_id: worker.unit_id, unit_type: 'worker' };
     units[worker.unit_id] = worker;
     player.workers.push(ref);
-
-    grid[position.y][position.x] = ref;
-}
-
-function steal(thief_id, player_id) {
-    let theif = units[player_id.theif.theif_id];
-
-    let victom = get_owner_of_cell(thief.target.x, thief.target.y);
-
-
-    let x = theif.position.x;
-    let y = theif.position.y;
-
-    if (is_position_adjacent_or_destination(x, y, 'hive')) {
-        shrink_hub(victom);
-        // todo other naming.
-        thief[has_resource] = true;
+    if (position.x < 0 || position.x > config.width || position.y < 0 || position.y > config.width) {
+        return;
     }
-
+    if (grid[position.y] == undefined) {
+        grid[position.y] = [];
+    }
+    grid[position.y][position.x] = ref;
 }
 
 function is_cell_in_list(cells, target) {
@@ -490,21 +509,6 @@ function is_cell_in_list(cells, target) {
         }
     }
     return false;
-}
-
-function create_unit_objective(unit, target_coodinates, action) {
-    /* 
-    objective{
-        coordinate : {}
-        action :  
-        target :
-    */
-    units[unit][objective][coordinate][x] = target_coodinates.x;
-    units[unit][objective][coordinate][y] = target_coodinates.y;
-
-    units[unit][objective]['action'] = action;
-
-
 }
 
 function remove_cell_from_unit(unit, target) {
@@ -540,6 +544,9 @@ function find_nearest_pos(des_X, des_Y, unit_id, cells) {
     let nearest_positions = get_border_cells(cells);
     const unit = units[unit_id];
 
+    if (unit.position == undefined) {
+        return;
+    }
     let cur_X = unit.position.x;
     let cur_Y = unit.position.y;
 
@@ -564,8 +571,6 @@ function find_nearest_pos(des_X, des_Y, unit_id, cells) {
             minimum_distance = distance;
         }
     }
-    // console.log(distances[minimum_distance]);
-    // console.log(".....");
     return minimum_distance > 0 ? distances[minimum_distance] : null;
 
 }
@@ -573,16 +578,22 @@ function find_nearest_pos(des_X, des_Y, unit_id, cells) {
 function move_unit(des_X, des_Y, unit_id, callback) {
 
     let unit = units[unit_id];
+    if (!unit.position) {
+        return;
+    }
 
     let cur_X = unit.position.x;
     let cur_Y = unit.position.y;
+
+    if (des_X < 0 || des_X > config.width || des_Y < 0 || des_Y > config.width) {
+        return;
+    }
 
     easystar.setGrid(grid);
     easystar.setAcceptableTiles([undefined, null, 0]);
 
     easystar.findPath(cur_X, cur_Y, des_X, des_Y, function(path) {
 
-        console.log("PATH ", path);
         let can_move = true;
         let target_position = { x: des_X, y: des_Y };
 
@@ -615,7 +626,7 @@ function move_unit(des_X, des_Y, unit_id, callback) {
         }
     });
 
-    easystar.setIterationsPerCalculation(1000);
+    easystar.setIterationsPerCalculation(100);
 }
 
 
@@ -644,26 +655,20 @@ function create_path(from_x, from_y, to_x, to_y) {
 
 export default function handleSockets(io) {
 
-    console.log('hi');
     io.on('connection', socket => {
         let type = socket.handshake.query.type;
 
-        console.log('[Server] User connected.');
-        console.log("[Server] Player type: " + type);
 
         sockets[socket.id] = socket;
-
         let player = {
             id: socket.id,
             type: type,
             last_hearbeat: new Date().getTime(),
-            workers: []
+            workers: [],
+            thieves: []
         }
 
         socket.on('play', client_player => {
-
-            console.log('[SERVER] Play recieved');
-
             // First time connection
             if (client_player.id != -1) {
                 player.id = client_player.id;
@@ -671,7 +676,6 @@ export default function handleSockets(io) {
 
             for (let p of Object.values(players)) {
                 if (p.id == client_player.id) {
-                    console.log(`[SERVER] Player already connected with id ${p.id}`);
                     socket.disconnect();
                 }
             }
@@ -687,8 +691,11 @@ export default function handleSockets(io) {
 
             // Setup test worker
             const starting_position = { x: hub.centre.x + 2, y: hub.centre.y + 2 };
+            const starting_position_theif = { x: hub.centre.x + 3, y: hub.centre.y + 3 };
+
             create_worker(player, starting_position);
-            console.log(starting_position);
+            create_thief(player, starting_position_theif);
+
             players[player.id] = player;
             socket.emit('setup', {
                 view: { topLeft: hub.centre },
@@ -700,81 +707,103 @@ export default function handleSockets(io) {
 
         socket.on('unit move', payload => {
 
-            console.log('[Player] Moving Player.');
 
             // For now, assume that we want first worker
-            console.log(player.workers);
-            let position = payload;
-            let unit = units[player.workers[0].unit_id];
+            let position = { x: payload.x, y: payload.y };
+            let unit_id = payload.unit_id;
+
+            if (unit_id == -1) {
+                return;
+            }
+            let unit = units[unit_id];
+            if (unit == undefined) {
+                return;
+            }
+
+            if (payload.x < 0 || payload.x > config.width || payload.y < 0 || payload.y > config.width) {
+                return;
+            }
+
+            // if unit belongs to player
+            // for (let i = 0; i < units.length; i++) {
+            //     if (units[i].id == unit_id && units[i].player_id == player.id) {
+            //
+            //     }
+
+            // }
+
 
             move_unit(position.x, position.y, unit.unit_id, (can_move, path, target) => {
 
                 if (can_move) {
-                    const cell = grid[position.y][position.x];
-                    if (cell) {
+                    const cell = get_cell_at_position(position.x, position.y);
+                    if (cell != null) {
 
-                        let action;
-                        let set_action = false;
 
                         if (unit.unit_type == 'worker' && cell.unit_type == 'resource') {
-                            action = 'mine';
-                            set_action = true;
-                        } else if (cell.unit_type == 'theif' && cell.unit_type == 'hive') {
-                            action = 'steal';
-                            set_action = true;
-                        }
-
-                        if (set_action) {
                             unit.objective = {
                                 target: cell.unit_id,
                                 target_cell: target,
-                                action: action
+                                action: 'mine'
                             };
+                        } else if (unit.unit_type == 'thief' && cell.unit_type == 'hive') {
+                            unit.objective = {
+                                target: cell.unit_id,
+                                target_cell: target,
+                                target_unit_id: cell.unit_id,
+                                action: 'steal'
+                            };
+                        } else {
+                            unit.objective = {};
                         }
                     }
                 } else {
                     unit.objective = {};
                 }
-
             });
         });
 
         socket.on('grow hub', e => {
-
-            console.log('[Player] Growing hub.')
-                // grow by 1
             grow_hub(player);
         });
 
         socket.on('shrink hub', e => {
-            console.log('[Player] Shrink hub.')
             shrink_hub(player);
         });
 
-        socket.on('create worker', e => {
-            console.log('[Player] Spawned worker.')
+        socket.on('make worker', e => {
 
-            for (let i = 0; i < config.worker.cost; i++) {
-                shrink_hub(player);
+            const player = players[socket.id];
+            if (get_worker_spawn_position(player) == undefined) {
+                return;
+            } else {
+                for (let i = 0; i < config.worker.cost; i++) {
+                    shrink_hub(player);
+                }
+                create_worker(player, get_worker_spawn_position(player));
             }
-            create_worker(player, get_worker_spawn_position(player));
         });
 
-        socket.on('create theif', e => {
-            console.log('[Player] Spawned thief.')
+        socket.on('make thief', e => {
 
-            for (let i = 0; i < config.thief.cost; i++) {
-                shrink_hub(player);
+            const player = players[socket.id];
+            if (get_worker_spawn_position(player) == undefined) {
+                return;
+            } else {
+                create_thief(player, get_worker_spawn_position(player));
+
+                for (let i = 0; i < config.thief.cost; i++) {
+                    shrink_hub(player);
+                }
             }
-            create_theif(player, get_worker_spawn_position(player));
+
         });
 
-        socket.on('theif returned', e => {
+        socket.on('thief returned', e => {
             /*
             Want player and destination(destination.x, destination.y)
             */
 
-            console.log('[Player] Theif returned.')
 
             for (let i = 0; i < config.thief.cost; i++) {
                 grow_hub(player);
@@ -791,9 +820,6 @@ export default function handleSockets(io) {
             /*
             Want player and destination(destination.x, destination.y)
             */
-
-            console.log('[Player] Worker returned.')
-
             for (let i = 0; i < config.worker.cost; i++) {
                 grow_hub(player);
             }
@@ -805,8 +831,13 @@ export default function handleSockets(io) {
             remove_cell_from_unit(units, destination)
         });
 
+        socket.on('get cell', e => {
+            socket.emit('read cell', { unit: get_cell_at_position(e.x, e.y), cell: e });
+        });
     });
 }
+
+
 
 function createArray(length) {
     var arr = new Array(length || 0),

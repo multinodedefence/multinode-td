@@ -66,33 +66,51 @@ export function drawCircularUnit(ctx, unit, cellSize, res) {
 /**
  * Required | Object { cells: array }
  */
-export function drawObject(ctx, screen, object) {
+export function drawObject(ctx, screen, object, hue, isSelected = false) {
 
-    let hue = object.hue;
+    // let hue = object.hue;
     const cellSize = screen.cellSize;
+    const brightness = isSelected ? '10%' : '50%';
 
     ctx.strokeStyle = 'hsl(' + hue + ', 100%, 45%)';
-    ctx.fillStyle = 'hsl(' + hue + ', 100%, 50%)';
-    ctx.lineWidth = cellSize * (1 / 6);
+    ctx.fillStyle = `hsl(${hue}, 100%, ${brightness})`;
+    ctx.lineWidth = cellSize * ((isSelected ? 3 : 1) / 6);
 
     const [screenX, screenY] = [screen.gridTopLeft.x, screen.gridTopLeft.y];
     const [topLX, topLY] = [screen.topLeft.x, screen.topLeft.y];
 
     for (let cell of object.cells) {
         let [x, y] = [cell.x, cell.y];
-        if (x < (screenX) || x > (screenX + screen.width / cellSize) ||
-            y < (screenY) || y > (screenY + screen.width / cellSize)) {
-            continue;
-        }
+        // if (x < (screenX) || x > (screenX + screen.width / cellSize) ||
+        //     y < (screenY) || y > (screenY + screen.width / cellSize)) {
+        //     continue;
+        // }
 
         const posX = (topLX + x - screenX) * cellSize;
         const posY = (topLY + y - screenY) * cellSize;
 
         if (object.unit_type == 'worker') {
             drawCircle(ctx, posX + 0.5 * cellSize, posY + 0.5 * cellSize, cellSize / 2, 30);
+        } else if (object.unit_type == 'thief') {
+            drawCircle(ctx, posX + 0.5 * cellSize, posY + 0.5 * cellSize, cellSize / 2, 4);
+        } else if (object.unit_type == 'hive') {
+            drawCircle(ctx, posX + 0.5 * cellSize, posY + 0.5 * cellSize, cellSize / 2, 6);
         } else {
             ctx.fillRect(posX, posY, cellSize, cellSize);
             ctx.strokeRect(posX, posY, cellSize, cellSize);
         }
+    }
+}
+
+export function centerScreen(target, screen) {
+    screen.panZoom.x = -(target.x + 0.5) * screen.cellSize + screen.width / 2;
+    screen.panZoom.y = -(target.y + 0.5) * screen.cellSize + screen.height / 2;
+}
+
+export function get_cell_at_position(target, screen) {
+
+    return {
+        x: Math.floor((target.x - screen.panZoom.x) / screen.cellSize),
+        y: Math.floor((target.y - screen.panZoom.y) / screen.cellSize)
     }
 }
