@@ -21,7 +21,7 @@
         "node-pathfinding": "^0.2.6",
         "pathfinding": "^0.4.18",
         "sendevent": "^1.0.5",
-        "socket.io": "^2.2.0",
+        "socket.io": "^2.4.0",
         "twig": "^1.13.3"
     },
     "devDependencies": {
